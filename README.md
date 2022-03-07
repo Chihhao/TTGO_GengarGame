@@ -15,12 +15,12 @@ Ref: https://www.thingiverse.com/thing:4501444
 I reviced it to fit 803040 1000mAh battery. 
 
 ## Pictrue  
-![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/Image/demo.gif)  
-![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/Image/image0.jpg)  
-![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/Image/image1.jpg)  
-![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/Image/image2.jpg)  
-![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/Image/image3.jpg)  
-![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/Image/image4.png)  
+![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/demo.gif)  
+![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image0.jpg)  
+![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image1.jpg)  
+![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image2.jpg)  
+![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image3.jpg)  
+![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image4.png)  
 
 ## Image to C Code  
 * use lcd-image-converter  
