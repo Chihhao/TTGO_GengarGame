@@ -2,6 +2,10 @@
 Code Ref: https://github.com/VolosR/TRexTTGOdisplay  
 Gengar Image Ref: https://www.deviantart.com/xxlpanda/art/Gengar-Sprite-795339646  
 
+## Features  
+* Enter sleep mode if no button press in 10 seconds  
+* Press button to adjust screen brightness(PWM)  
+
 ## Board  
 TTGO T-Display V1.1  
 
