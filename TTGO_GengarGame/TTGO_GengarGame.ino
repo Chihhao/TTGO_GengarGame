@@ -50,18 +50,21 @@ int bumpType[2];
 float enemyX[2];
 int enemyColor[2];
 
-float fSpeed;
+float heroSpeed;
 int hero_Y;
 float jumpSpeed;
 
 int frames=0;
+int flyingTime=0;
 
-int bump_no;
-float cloudfSpeed=0.4;
+float cloudSpeed=0.4;
 int gameStatus;
 int score=0;
 
-bool jumped = false;
+typedef enum {
+    Running, Jumping, Falling, Flying    
+}HeroStatus;
+HeroStatus heroStatus = Running;
 
 int brightness_level[7]={35,70,100,130,160,200,230};
 #define BRIGHTNESS_LEVEL 7
@@ -74,9 +77,10 @@ int JUMP_TOP, JUMP_BOTTOM;
 
 int hero_run_W, hero_run_H;
 int hero_jump_W, hero_jump_H;
+int hero_colision_diff;
 int heroSelectedIdx = 0;
 const int NO_HEROS = 3;
-int runFrameNo=0;
+
 
 int hero_front_Type=1;
 
@@ -84,47 +88,55 @@ int hero_front_Type=1;
 #define EEPROM_SIZE 4
 long historyHighScore;
 
-void initGame(){
+void initGame(){  
+  
+  frames = 0;
+  score = 0;
+  heroSpeed = initialSpeed; 
+  heroStatus = Running;
+  
   if(heroSelectedIdx == 0){
     hero_run_W = KOOPA_RUN_W;
     hero_run_H = KOOPA_RUN_H;  
     hero_jump_W = KOOPA_JUMP_W;
     hero_jump_H = KOOPA_JUMP_H;
+    hero_colision_diff = 5;
   }
   else if(heroSelectedIdx == 1){  
     hero_run_W = GENGAR_RUN_W;
     hero_run_H = GENGAR_RUN_H; 
     hero_jump_W = GENGAR_JUMP_W;
     hero_jump_H = GENGAR_JUMP_H;  
+    hero_colision_diff = 5;
   }
   else if(heroSelectedIdx == 2){  
     hero_run_W = GOKU_RUN_W;
     hero_run_H = GOKU_RUN_H;  
     hero_jump_W = GOKU_JUMP_W;
     hero_jump_H = GOKU_JUMP_H; 
+    hero_colision_diff = 10;
   }
 
   if(heroSelectedIdx == 0){
-    jumpSpeed = -1.8;
+    jumpSpeed = 1.8;
     initialSpeed = 1.0;
     JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 10;
     JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H;
   }
   else if(heroSelectedIdx == 1){  
-    jumpSpeed = -2.2;
+    jumpSpeed = 2.2;
     initialSpeed = 1.2;
-    JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 10;
+    JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 15;
     JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H;
   }
   else if(heroSelectedIdx == 2){  
-    jumpSpeed = -2.0;
+    jumpSpeed = 2.0;
     initialSpeed = 1.4;
     JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 15;
-    JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H - 6;
+    JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H - 4;
   }
   
   hero_Y = JUMP_BOTTOM;
-  fSpeed = initialSpeed; 
   
   cloudX[0] = random(0, 80);
   cloudX[1] = random(100, 180);
@@ -135,12 +147,6 @@ void initGame(){
   enemyX[1] = random(400, 470);
   enemyColor[0] = RandomColor();
   enemyColor[1] = RandomColor();
-    
-  frames = 0;
-  runFrameNo = 0;
-  bump_no = random(0, 2);
-  cloudfSpeed = 0.4;
-  score = 0;
 
   for(int i=0; i<6; i++){
     linesX[i] = random(i*40, (i+1)*40);
@@ -154,20 +160,20 @@ void initGame(){
     bumpType[n] = random(0, 2); //0 or 1
   }
 
-
   spriteEnemy0.createSprite(ENEMY_W, ENEMY_H);
   spriteEnemy1.createSprite(ENEMY_W, ENEMY_H);
-
 }
 
 void pressA(Button2& btn) {
   last_available_time = millis();
   
   if(gameStatus == STATUS_RUN){
-    if(!jumped) {
-      jumped = true;
-      runFrameNo=0;  
+    if(heroStatus == Running) {
+      heroStatus = Jumping;
     }
+    else if(heroSelectedIdx==2 && heroStatus!=Flying){
+      heroStatus = Flying;
+    }    
   }
   else if(gameStatus == STATUS_GAMEOVER){
     gameStatus = STATUS_INIT;
@@ -239,40 +245,44 @@ void loop() {
   }
   
   if(gameStatus == STATUS_RUN){
-    if(jumped){ 
-      hero_Y += jumpSpeed; 
-      if(hero_Y <= JUMP_TOP)  { 
-        jumpSpeed = -jumpSpeed; 
+    if(heroStatus == Flying){
+      if(flyingTime++ > 30) {      
+        heroStatus = Falling;
+        flyingTime = 0;
+        if(frames < 8) { 
+          frames = 15 - frames; 
+        }        
       }
-      else if(hero_Y >= JUMP_BOTTOM) {
-        hero_Y = JUMP_BOTTOM;
-        jumpSpeed = -jumpSpeed; 
-        jumped = false;
+    }    
+    else if(heroStatus == Jumping){ 
+      hero_Y -= jumpSpeed; 
+      if(hero_Y <= JUMP_TOP) {
+        heroStatus = Falling; 
       }
     }
-    if(frames < 8 && !jumped) runFrameNo = 0;
-    if(frames > 8 && !jumped) runFrameNo = 1;
-      
-	drawRun(runFrameNo, jumped);	
-    
-    frames++;
-    if(frames==16) frames=0;
- 
+    else if(heroStatus == Falling){        
+      hero_Y += jumpSpeed;        
+      if(hero_Y >= JUMP_BOTTOM) {
+        heroStatus = Running;
+        hero_Y = JUMP_BOTTOM;          
+      }       
+    }
+
+    drawSprite();
     checkColision();    
   }
 
-  if(gameStatus == STATUS_GAMEOVER){
+  if(gameStatus == STATUS_GAMEOVER){    
     spriteScreen.fillSprite(TFT_BLACK);    
     spriteScreen.setTextSize(2); 
     //spriteScreen.drawString("GAME OVER", 25, 25, 2);  
-    spriteScreen.drawString("Score: " + String(score), 25, 25, 2);  
+    spriteScreen.drawString("Score : " + String(score), 25, 25, 2);  
     if(score > historyHighScore) {
       historyHighScore = score;
       EEPROMWritelong(0, historyHighScore);
     }
     spriteScreen.drawString("Max : " + String(historyHighScore), 25, 75, 2);      
     spriteScreen.pushSprite(0, 0);
-    //spriteHeroRun.deleteSprite();
     spriteEnemy0.deleteSprite();
     spriteEnemy1.deleteSprite();
     
@@ -284,67 +294,72 @@ void loop() {
 
 }
 
-void drawRun(int runFrameNo, int jumpped){ 
+void drawSprite(){ 
+  int runFrameNo = 0;
+  if(heroStatus == Running){    
+    if(frames < 8) runFrameNo = 0;
+    if(frames > 8) runFrameNo = 1;
+    if(++frames >= 16) frames = 0;
+  }
+  heroSpeed = initialSpeed + (score/100)*0.1; 
+  
   spriteScreen.fillSprite(TFT_BLACK);
+
+  // Draw Ground
   spriteScreen.drawLine(0, GROUND_Y, 240, GROUND_Y, TFT_WHITE);
   
-  
+  // Draw Texture of Ground
   for(int i=0; i<6; i++){
     spriteScreen.drawLine(linesX[i], GROUND_Y+3 ,linesX[i]+linesW[i], GROUND_Y+3, TFT_WHITE);
-    linesX[i] = linesX[i] - fSpeed;
+    linesX[i] = linesX[i] - heroSpeed;
     if(linesX[i] < -14){
       linesX[i]=random(245, 280);
       linesW[i]=random(1, 14);
     }
     spriteScreen.drawLine(linesX2[i], GROUND_Y+14 , linesX2[i]+linesW2[i], GROUND_Y+14, TFT_WHITE);
-    linesX2[i] = linesX2[i] - fSpeed;
+    linesX2[i] = linesX2[i] - heroSpeed;
     if(linesX2[i] < -14){
       linesX2[i]=random(245, 280);
       linesW2[i]=random(1, 14);
     }
   }
-
-  // Draw Cloud
-  for(int j=0; j<2; j++){
-    spriteScreen.drawXBitmap(cloudX[j], cloudY[j], cloud, 38, 11, TFT_WHITE, TFT_BLACK);
-    cloudX[j] = cloudX[j] - cloudfSpeed;
-    if(cloudX[j] < -40){
-      cloudX[j] = random(244, 364);
-      cloudY[j] = random(20, 40);
-    }
-  }
-
-  // Draw Bump
+  
+  // Draw Bumps of Ground
   for(int n=0; n<2; n++){
     spriteScreen.drawXBitmap(bumpsX[n], GROUND_Y-4, bump[bumpType[n]], 34, 5, TFT_WHITE, TFT_BLACK);
-    bumpsX[n] = bumpsX[n] - fSpeed;
+    bumpsX[n] = bumpsX[n] - heroSpeed;
     if(bumpsX[n] < -40){
       bumpsX[n] = random(244, 364);
       bumpType[n] = random(0, 2); //0 or 1
     }
   }
 
-  // Move Enemy or Create New Enemy
-  for(int enemyNo=0; enemyNo<2; enemyNo++){
-    enemyX[enemyNo] -= fSpeed;
-    if(enemyX[enemyNo] < -20) {
-      enemyX[enemyNo] = random(240,360) + 60 * fSpeed; //Create New Enemy
-//      do{
-//        enemyX[enemyNo] = random(240,480); //Create New Enemy
-//      }while(fabs(enemyX[0]-enemyX[1]) < 40+hero_run_W*fSpeed);     
-      enemyColor[enemyNo] = RandomColor();
+  // Draw Clouds
+  for(int j=0; j<2; j++){
+    spriteScreen.drawXBitmap(cloudX[j], cloudY[j], cloud, 38, 11, TFT_WHITE, TFT_BLACK);
+    cloudX[j] = cloudX[j] - cloudSpeed;
+    if(cloudX[j] < -40){
+      cloudX[j] = random(244, 364);
+      cloudY[j] = random(20, 40);
     }
   }
-  
+
+  // Draw Enemys 
+  for(int enemyNo=0; enemyNo<2; enemyNo++){
+    enemyX[enemyNo] -= heroSpeed;
+    if(enemyX[enemyNo] < -20) {
+      enemyX[enemyNo] = random(240,360) + 60 * heroSpeed; //Create New Enemy  
+      enemyColor[enemyNo] = RandomColor();
+    }
+  }  
   spriteEnemy0.drawXBitmap(0, 0, enemy[0], ENEMY_W, ENEMY_H, enemyColor[0], TFT_BLACK);
-  spriteEnemy1.drawXBitmap(0, 0, enemy[1], ENEMY_W, ENEMY_H, enemyColor[1], TFT_BLACK);
-  
+  spriteEnemy1.drawXBitmap(0, 0, enemy[1], ENEMY_W, ENEMY_H, enemyColor[1], TFT_BLACK);  
   spriteEnemy0.pushToSprite(&spriteScreen, enemyX[0], ENEMY_Y, TFT_BLACK);
   spriteEnemy1.pushToSprite(&spriteScreen, enemyX[1], ENEMY_Y, TFT_BLACK);
     
   
   // Draw Hero
-  if(jumpped){
+  if(heroStatus == Jumping ||  heroStatus == Falling){
 	  spriteHeroJump.createSprite(hero_jump_W, hero_jump_H);
 	  if(heroSelectedIdx==0){
 		spriteHeroJump.pushImage(0, 0, hero_jump_W, hero_jump_H, koopa_jump);
@@ -371,15 +386,18 @@ void drawRun(int runFrameNo, int jumpped){
 	  spriteHeroRun.pushToSprite(&spriteScreen, HERO_X, hero_Y, TFT_GREEN);
   }   
 
+  // Draw Score
   score=(millis()-game_start_time)/120;
   spriteScreen.setTextSize(1); 
   spriteScreen.drawString(String(score), 200, 12, 2);
+
+  // Show Sprite
   spriteScreen.pushSprite(0, 0);
-  
+
+  // Delete Sprite
   spriteHeroRun.deleteSprite();
   spriteHeroJump.deleteSprite();
-
-  fSpeed = initialSpeed + (score/100)*0.1;  
+  
 }
 
 int RandomColor(){
@@ -390,25 +408,20 @@ int RandomColor(){
 }
 
 void checkColision(){
-  if(heroSelectedIdx == 2){
-    for(int enemyNo=0; enemyNo<2; enemyNo++){
-      if( enemyX[enemyNo] < HERO_X + hero_jump_W/2 && 
-          enemyX[enemyNo] > HERO_X && 
-          hero_Y > JUMP_BOTTOM - ENEMY_H + 10){
-        gameStatus = STATUS_GAMEOVER;
-      }
-    }
-  }
-  else{
-    for(int enemyNo=0; enemyNo<2; enemyNo++){
-      if( enemyX[enemyNo] < HERO_X + hero_jump_W/2 && 
-          enemyX[enemyNo] > HERO_X && 
-          hero_Y > JUMP_BOTTOM - ENEMY_H + 5){
-        gameStatus = STATUS_GAMEOVER;
-      }
+  bool colision = false; 
+
+  for(int enemyNo=0; enemyNo<2; enemyNo++){      
+    if( enemyX[enemyNo] < HERO_X + hero_jump_W/2 && 
+        enemyX[enemyNo] > HERO_X && 
+        hero_Y > JUMP_BOTTOM - ENEMY_H + hero_colision_diff){
+      colision = true;
     }
   }
 
+  if(colision){
+    delay(500); 
+    gameStatus = STATUS_GAMEOVER;
+  }
 }
 
 void doSleep(){
@@ -421,6 +434,10 @@ void doSleep(){
 
 void showHeroSelection(){
   spriteScreen.fillSprite(TFT_BLACK);   
+  
+  if(frames < 8) hero_front_Type = 1;
+  if(frames > 8) hero_front_Type = 2;
+  if(++frames==16) frames=0;
   
   // Draw Rect
   if(heroSelectedIdx==0){
@@ -439,22 +456,20 @@ void showHeroSelection(){
     spriteScreen.drawRect(160, 27, 80, 80, TFT_YELLOW);
   }
 
+  int X0 = 40 - KOOPA_FRONT_W/2;
+  int Y0 = 95 - KOOPA_FRONT_H + 5;
+
+  int X1 = 119 - GENGAR_FRONT_W/2;
+  int Y1 = 95  - GENGAR_FRONT_H - 5;
+
+  int X2 = 199 - GOKU_FRONT_W/2 - 1;
+  int Y2 = 95 - GOKU_FRONT_H + 2; 
+	
+  // Draw Heros
   spriteHero0.createSprite(KOOPA_FRONT_W, KOOPA_FRONT_H);
   spriteHero1.createSprite(GENGAR_FRONT_W, GENGAR_FRONT_H);
   spriteHero2.createSprite(GOKU_FRONT_W, GOKU_FRONT_H);
-
-  int X0,Y0;
-  X0 = 40 - KOOPA_FRONT_W/2;
-  Y0 = 95 - KOOPA_FRONT_H + 5;
-  int X1,Y1;
-  X1 = 119 - GENGAR_FRONT_W/2;
-  Y1 = 95  - GENGAR_FRONT_H - 5;
-  int X2,Y2;
-  X2 = 199 - GOKU_FRONT_W/2;
-  Y2 = 95 - GOKU_FRONT_H + 5; 
-	
-  // Draw Heros
-  if(heroSelectedIdx == 0){ //select koopa
+  if(heroSelectedIdx == 0){ 
     // Hero 0 koopa walks
     spriteHero0.pushImage(0, 0, KOOPA_FRONT_W, KOOPA_FRONT_H, koopa_front[hero_front_Type]);
     spriteHero0.pushToSprite(&spriteScreen, X0, Y0, TFT_GREEN);
@@ -493,13 +508,7 @@ void showHeroSelection(){
     spriteHero2.pushImage(0, 0, GOKU_FRONT_W, GOKU_FRONT_H, goku_front[hero_front_Type]);
     spriteHero2.pushToSprite(&spriteScreen, X2, Y2, TFT_GREEN);
   } 
-
-  if(frames < 8 && !jumped) hero_front_Type = 1;
-  if(frames > 8 && !jumped) hero_front_Type = 2;
-
-  frames++;
-  if(frames==16) frames=0;
-  
+    
   spriteScreen.pushSprite(0, 0); 
    
   spriteHero0.deleteSprite();
