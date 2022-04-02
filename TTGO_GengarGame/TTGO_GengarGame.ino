@@ -10,6 +10,7 @@
 #include "item.h"
 #include "gengar.h"
 #include "koopa.h"
+#include "goku.h"
 
 #define STATUS_GAMEOVER 0
 #define STATUS_RUN 1
@@ -17,7 +18,9 @@
 
 TFT_eSPI    tft = TFT_eSPI();        
 TFT_eSprite spriteScreen = TFT_eSprite(&tft);
-TFT_eSprite spriteHero = TFT_eSprite(&tft);
+TFT_eSprite spriteHeroRun = TFT_eSprite(&tft);
+TFT_eSprite spriteHeroJump = TFT_eSprite(&tft);
+TFT_eSprite spriteHero0 = TFT_eSprite(&tft);
 TFT_eSprite spriteHero1 = TFT_eSprite(&tft);
 TFT_eSprite spriteHero2 = TFT_eSprite(&tft);
 TFT_eSprite spriteEnemy0 = TFT_eSprite(&tft);
@@ -69,27 +72,56 @@ long game_start_time = 0;
 
 int JUMP_TOP, JUMP_BOTTOM;
 
-int hero_W, hero_H;
+int hero_run_W, hero_run_H;
+int hero_jump_W, hero_jump_H;
 int heroSelectedIdx = 0;
-int heroType=0;
+const int NO_HEROS = 3;
+int runFrameNo=0;
 
 int hero_front_Type=1;
 
+#include "EEPROM.h"
+#define EEPROM_SIZE 4
+long historyHighScore;
+
 void initGame(){
   if(heroSelectedIdx == 0){
-    hero_W = KOOPA_W;
-    hero_H = KOOPA_H;  
-    jumpSpeed = -1.8;  
-    initialSpeed = 1.0;
+    hero_run_W = KOOPA_RUN_W;
+    hero_run_H = KOOPA_RUN_H;  
+    hero_jump_W = KOOPA_JUMP_W;
+    hero_jump_H = KOOPA_JUMP_H;
   }
   else if(heroSelectedIdx == 1){  
-    hero_W = GENGAR_W;
-    hero_H = GENGAR_H;  
-    jumpSpeed = -2.2;  
-    initialSpeed = 1.2;
+    hero_run_W = GENGAR_RUN_W;
+    hero_run_H = GENGAR_RUN_H; 
+    hero_jump_W = GENGAR_JUMP_W;
+    hero_jump_H = GENGAR_JUMP_H;  
   }
-  JUMP_TOP = GROUND_Y - ENEMY_H - hero_H - 10;
-  JUMP_BOTTOM = GROUND_Y + 14 - hero_H;
+  else if(heroSelectedIdx == 2){  
+    hero_run_W = GOKU_RUN_W;
+    hero_run_H = GOKU_RUN_H;  
+    hero_jump_W = GOKU_JUMP_W;
+    hero_jump_H = GOKU_JUMP_H; 
+  }
+
+  if(heroSelectedIdx == 0){
+    jumpSpeed = -1.8;
+    initialSpeed = 1.0;
+    JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 10;
+    JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H;
+  }
+  else if(heroSelectedIdx == 1){  
+    jumpSpeed = -2.2;
+    initialSpeed = 1.2;
+    JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 10;
+    JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H;
+  }
+  else if(heroSelectedIdx == 2){  
+    jumpSpeed = -2.0;
+    initialSpeed = 1.4;
+    JUMP_TOP = GROUND_Y - ENEMY_H - hero_jump_H - 15;
+    JUMP_BOTTOM = GROUND_Y + 14 - hero_jump_H - 6;
+  }
   
   hero_Y = JUMP_BOTTOM;
   fSpeed = initialSpeed; 
@@ -105,7 +137,7 @@ void initGame(){
   enemyColor[1] = RandomColor();
     
   frames = 0;
-  heroType = 0;
+  runFrameNo = 0;
   bump_no = random(0, 2);
   cloudfSpeed = 0.4;
   score = 0;
@@ -122,7 +154,7 @@ void initGame(){
     bumpType[n] = random(0, 2); //0 or 1
   }
 
-  spriteHero.createSprite(hero_W, hero_H);
+
   spriteEnemy0.createSprite(ENEMY_W, ENEMY_H);
   spriteEnemy1.createSprite(ENEMY_W, ENEMY_H);
 
@@ -134,7 +166,7 @@ void pressA(Button2& btn) {
   if(gameStatus == STATUS_RUN){
     if(!jumped) {
       jumped = true;
-      heroType=0;  
+      runFrameNo=0;  
     }
   }
   else if(gameStatus == STATUS_GAMEOVER){
@@ -153,9 +185,10 @@ void pressA(Button2& btn) {
 void pressB(Button2& btn) {  
   last_available_time = millis();
 
-  if(gameStatus == STATUS_INIT){    
-    if(heroSelectedIdx==0) heroSelectedIdx = 1;
-    else if(heroSelectedIdx==1) heroSelectedIdx = 0;
+  if(gameStatus == STATUS_INIT){
+    if(++heroSelectedIdx >= NO_HEROS) {
+      heroSelectedIdx = 0;     
+    }
   }
   else{
     if(brightness++ > BRIGHTNESS_LEVEL - 1) { 
@@ -165,7 +198,10 @@ void pressB(Button2& btn) {
   }
 }
 
-void setup() {   
+void setup() {
+  EEPROM.begin(EEPROM_SIZE);
+  historyHighScore = EEPROMReadlong(0);
+  
   esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, LOW);  
   //esp_sleep_enable_ext0_wakeup(GPIO_NUM_35, LOW);
   
@@ -214,10 +250,11 @@ void loop() {
         jumped = false;
       }
     }
-    if(frames < 8 && !jumped) heroType = 1;
-    if(frames > 8 && !jumped) heroType = 2;
-  
-    drawS(heroType);
+    if(frames < 8 && !jumped) runFrameNo = 0;
+    if(frames > 8 && !jumped) runFrameNo = 1;
+      
+	drawRun(runFrameNo, jumped);	
+    
     frames++;
     if(frames==16) frames=0;
  
@@ -227,13 +264,18 @@ void loop() {
   if(gameStatus == STATUS_GAMEOVER){
     spriteScreen.fillSprite(TFT_BLACK);    
     spriteScreen.setTextSize(2); 
-    spriteScreen.drawString("GAME OVER", 25, 25, 2);  
-    spriteScreen.drawString("Score: " + String(score), 25, 75, 2);      
+    //spriteScreen.drawString("GAME OVER", 25, 25, 2);  
+    spriteScreen.drawString("Score: " + String(score), 25, 25, 2);  
+    if(score > historyHighScore) {
+      historyHighScore = score;
+      EEPROMWritelong(0, historyHighScore);
+    }
+    spriteScreen.drawString("Max : " + String(historyHighScore), 25, 75, 2);      
     spriteScreen.pushSprite(0, 0);
-
-    spriteHero.deleteSprite();
+    //spriteHeroRun.deleteSprite();
     spriteEnemy0.deleteSprite();
-    spriteEnemy1.deleteSprite();    
+    spriteEnemy1.deleteSprite();
+    
   }   
 
   if(gameStatus == STATUS_INIT){
@@ -242,9 +284,10 @@ void loop() {
 
 }
 
-void drawS(int heroType){ 
+void drawRun(int runFrameNo, int jumpped){ 
   spriteScreen.fillSprite(TFT_BLACK);
   spriteScreen.drawLine(0, GROUND_Y, 240, GROUND_Y, TFT_WHITE);
+  
   
   for(int i=0; i<6; i++){
     spriteScreen.drawLine(linesX[i], GROUND_Y+3 ,linesX[i]+linesW[i], GROUND_Y+3, TFT_WHITE);
@@ -288,28 +331,53 @@ void drawS(int heroType){
       enemyX[enemyNo] = random(240,360) + 60 * fSpeed; //Create New Enemy
 //      do{
 //        enemyX[enemyNo] = random(240,480); //Create New Enemy
-//      }while(fabs(enemyX[0]-enemyX[1]) < 40+hero_W*fSpeed);     
+//      }while(fabs(enemyX[0]-enemyX[1]) < 40+hero_run_W*fSpeed);     
       enemyColor[enemyNo] = RandomColor();
     }
   }
   
   spriteEnemy0.drawXBitmap(0, 0, enemy[0], ENEMY_W, ENEMY_H, enemyColor[0], TFT_BLACK);
   spriteEnemy1.drawXBitmap(0, 0, enemy[1], ENEMY_W, ENEMY_H, enemyColor[1], TFT_BLACK);
-  if(heroSelectedIdx==0){
-    spriteHero.pushImage(0, 0, hero_W, hero_H, koopa[heroType]); 
-  }
-  else if(heroSelectedIdx==1){    
-    spriteHero.pushImage(0, 0, hero_W, hero_H, gengar[heroType]);  
-  }  
-    
+  
   spriteEnemy0.pushToSprite(&spriteScreen, enemyX[0], ENEMY_Y, TFT_BLACK);
   spriteEnemy1.pushToSprite(&spriteScreen, enemyX[1], ENEMY_Y, TFT_BLACK);
-  spriteHero.pushToSprite(&spriteScreen, HERO_X, hero_Y, TFT_GREEN);
+    
+  
+  // Draw Hero
+  if(jumpped){
+	  spriteHeroJump.createSprite(hero_jump_W, hero_jump_H);
+	  if(heroSelectedIdx==0){
+		spriteHeroJump.pushImage(0, 0, hero_jump_W, hero_jump_H, koopa_jump);
+	  }
+	  else if(heroSelectedIdx==1){
+		spriteHeroJump.pushImage(0, 0, hero_jump_W, hero_jump_H, gengar_jump);  
+	  }  
+	  else if(heroSelectedIdx==2){
+		spriteHeroJump.pushImage(0, 0, hero_jump_W, hero_jump_H, goku_jump);  
+	  }	  
+	  spriteHeroJump.pushToSprite(&spriteScreen, HERO_X, hero_Y, TFT_GREEN);
+  }
+  else{
+	  spriteHeroRun.createSprite(hero_run_W, hero_run_H);
+	  if(heroSelectedIdx==0){
+		spriteHeroRun.pushImage(0, 0, hero_run_W, hero_run_H, koopa_run[runFrameNo]);		
+	  }
+	  else if(heroSelectedIdx==1){    
+		spriteHeroRun.pushImage(0, 0, hero_run_W, hero_run_H, gengar_run[runFrameNo]);  		
+	  }  
+	  else if(heroSelectedIdx==2){    
+		spriteHeroRun.pushImage(0, 0, hero_run_W, hero_run_H, goku_run);  		
+	  }	  
+	  spriteHeroRun.pushToSprite(&spriteScreen, HERO_X, hero_Y, TFT_GREEN);
+  }   
 
   score=(millis()-game_start_time)/120;
   spriteScreen.setTextSize(1); 
   spriteScreen.drawString(String(score), 200, 12, 2);
   spriteScreen.pushSprite(0, 0);
+  
+  spriteHeroRun.deleteSprite();
+  spriteHeroJump.deleteSprite();
 
   fSpeed = initialSpeed + (score/100)*0.1;  
 }
@@ -322,13 +390,25 @@ int RandomColor(){
 }
 
 void checkColision(){
-  for(int enemyNo=0; enemyNo<2; enemyNo++){
-    if( enemyX[enemyNo] < HERO_X + hero_W/2 && 
-        enemyX[enemyNo] > HERO_X && 
-        hero_Y > JUMP_BOTTOM - ENEMY_H + 5){
-      gameStatus = STATUS_GAMEOVER;
+  if(heroSelectedIdx == 2){
+    for(int enemyNo=0; enemyNo<2; enemyNo++){
+      if( enemyX[enemyNo] < HERO_X + hero_jump_W/2 && 
+          enemyX[enemyNo] > HERO_X && 
+          hero_Y > JUMP_BOTTOM - ENEMY_H + 10){
+        gameStatus = STATUS_GAMEOVER;
+      }
     }
   }
+  else{
+    for(int enemyNo=0; enemyNo<2; enemyNo++){
+      if( enemyX[enemyNo] < HERO_X + hero_jump_W/2 && 
+          enemyX[enemyNo] > HERO_X && 
+          hero_Y > JUMP_BOTTOM - ENEMY_H + 5){
+        gameStatus = STATUS_GAMEOVER;
+      }
+    }
+  }
+
 }
 
 void doSleep(){
@@ -344,44 +424,75 @@ void showHeroSelection(){
   
   // Draw Rect
   if(heroSelectedIdx==0){
-    spriteScreen.drawRect(30, 27, 80, 80, TFT_YELLOW);  
-    spriteScreen.drawRect(130, 27, 80, 80, TFT_DARKGREY);
+    spriteScreen.drawRect(1, 27, 80, 80, TFT_YELLOW);  
+    spriteScreen.drawRect(81, 27, 79, 80, TFT_DARKGREY);
+    spriteScreen.drawRect(160, 27, 80, 80, TFT_DARKGREY);
   }
-  else{
-    spriteScreen.drawRect(30, 27, 80, 80, TFT_DARKGREY);  
-    spriteScreen.drawRect(130, 27, 80, 80, TFT_YELLOW);
+  else if(heroSelectedIdx==1){
+    spriteScreen.drawRect(1, 27, 80, 80, TFT_DARKGREY);  
+    spriteScreen.drawRect(81, 27, 79, 80, TFT_YELLOW);
+    spriteScreen.drawRect(160, 27, 80, 80, TFT_DARKGREY);
+  }
+  else if(heroSelectedIdx==2){
+    spriteScreen.drawRect(1, 27, 80, 80, TFT_DARKGREY);  
+    spriteScreen.drawRect(81, 27, 79, 80, TFT_DARKGREY);
+    spriteScreen.drawRect(160, 27, 80, 80, TFT_YELLOW);
   }
 
-  spriteHero1.createSprite(KOOPA_FRONT_W, KOOPA_FRONT_H);
-  spriteHero2.createSprite(GENGAR_FRONT_W, GENGAR_FRONT_H);
+  spriteHero0.createSprite(KOOPA_FRONT_W, KOOPA_FRONT_H);
+  spriteHero1.createSprite(GENGAR_FRONT_W, GENGAR_FRONT_H);
+  spriteHero2.createSprite(GOKU_FRONT_W, GOKU_FRONT_H);
 
   int X0,Y0;
-  X0 = 70 - KOOPA_FRONT_W/2;
+  X0 = 40 - KOOPA_FRONT_W/2;
   Y0 = 95 - KOOPA_FRONT_H + 5;
   int X1,Y1;
-  X1 = 170 - GENGAR_FRONT_W/2;
+  X1 = 119 - GENGAR_FRONT_W/2;
   Y1 = 95  - GENGAR_FRONT_H - 5;
-    
+  int X2,Y2;
+  X2 = 199 - GOKU_FRONT_W/2;
+  Y2 = 95 - GOKU_FRONT_H + 5; 
+	
   // Draw Heros
   if(heroSelectedIdx == 0){ //select koopa
     // Hero 0 koopa walks
-    spriteHero1.pushImage(0, 0, KOOPA_FRONT_W, KOOPA_FRONT_H, koopa_front[hero_front_Type]);
-    spriteHero1.pushToSprite(&spriteScreen, X0, Y0, TFT_GREEN);
+    spriteHero0.pushImage(0, 0, KOOPA_FRONT_W, KOOPA_FRONT_H, koopa_front[hero_front_Type]);
+    spriteHero0.pushToSprite(&spriteScreen, X0, Y0, TFT_GREEN);
 
     // Hero 1 gengar Stop 
-	  spriteHero2.pushImage(0, 0, GENGAR_FRONT_W, GENGAR_FRONT_H, gengar_front[0]);
-    spriteHero2.pushToSprite(&spriteScreen, X1, Y1/*, TFT_BLACK*/);
-    
+    spriteHero1.pushImage(0, 0, GENGAR_FRONT_W, GENGAR_FRONT_H, gengar_front[0]);
+    spriteHero1.pushToSprite(&spriteScreen, X1, Y1/*, TFT_BLACK*/);
+	
+    // Hero 2 koopa Stop
+    spriteHero2.pushImage(0, 0, GOKU_FRONT_W, GOKU_FRONT_H, goku_front[0]);
+    spriteHero2.pushToSprite(&spriteScreen, X2, Y2, TFT_GREEN);    
   }
   else if(heroSelectedIdx == 1){
     // Hero 0 koopa Stop
-	  spriteHero1.pushImage(0, 0, KOOPA_FRONT_W, KOOPA_FRONT_H, koopa_front[0]);
-    spriteHero1.pushToSprite(&spriteScreen, X0, Y0, TFT_GREEN);
+    spriteHero0.pushImage(0, 0, KOOPA_FRONT_W, KOOPA_FRONT_H, koopa_front[0]);
+    spriteHero0.pushToSprite(&spriteScreen, X0, Y0, TFT_GREEN);
 
     // Hero 1 gengar walks
-    spriteHero2.pushImage(0, 0, GENGAR_FRONT_W, GENGAR_FRONT_H, gengar_front[hero_front_Type]);
-    spriteHero2.pushToSprite(&spriteScreen, X1, Y1/*, TFT_BLACK*/);
+    spriteHero1.pushImage(0, 0, GENGAR_FRONT_W, GENGAR_FRONT_H, gengar_front[hero_front_Type]);
+    spriteHero1.pushToSprite(&spriteScreen, X1, Y1/*, TFT_BLACK*/);
+	
+    // Hero 2 koopa Stop
+    spriteHero2.pushImage(0, 0, GOKU_FRONT_W, GOKU_FRONT_H, goku_front[0]);
+    spriteHero2.pushToSprite(&spriteScreen, X2, Y2, TFT_GREEN);   
   }
+  else if(heroSelectedIdx == 2){
+    // Hero 0 koopa Stop
+    spriteHero0.pushImage(0, 0, KOOPA_FRONT_W, KOOPA_FRONT_H, koopa_front[0]);
+    spriteHero0.pushToSprite(&spriteScreen, X0, Y0, TFT_GREEN);
+
+    // Hero 1 gengar Stop 
+    spriteHero1.pushImage(0, 0, GENGAR_FRONT_W, GENGAR_FRONT_H, gengar_front[0]);
+    spriteHero1.pushToSprite(&spriteScreen, X1, Y1/*, TFT_BLACK*/);
+	
+    // Hero 0 koopa walks
+    spriteHero2.pushImage(0, 0, GOKU_FRONT_W, GOKU_FRONT_H, goku_front[hero_front_Type]);
+    spriteHero2.pushToSprite(&spriteScreen, X2, Y2, TFT_GREEN);
+  } 
 
   if(frames < 8 && !jumped) hero_front_Type = 1;
   if(frames > 8 && !jumped) hero_front_Type = 2;
@@ -391,6 +502,36 @@ void showHeroSelection(){
   
   spriteScreen.pushSprite(0, 0); 
    
-  spriteHero1.deleteSprite();
-  spriteHero2.deleteSprite();  
+  spriteHero0.deleteSprite();
+  spriteHero1.deleteSprite();  
+  spriteHero2.deleteSprite(); 
+}
+
+void EEPROMWritelong(int address, long value) {
+      //Decomposition from a long to 4 bytes by using bitshift.
+      //One = Most significant -> Four = Least significant byte
+      byte four = (value & 0xFF);
+      byte three = ((value >> 8) & 0xFF);
+      byte two = ((value >> 16) & 0xFF);
+      byte one = ((value >> 24) & 0xFF);
+
+      //Write the 4 bytes into the eeprom memory.
+      EEPROM.write(address, four);
+      EEPROM.write(address + 1, three);
+      EEPROM.write(address + 2, two);
+      EEPROM.write(address + 3, one);
+      EEPROM.commit();
+}
+
+//This function will return a 4 byte (32bit) long from the eeprom
+//at the specified address to adress + 3.
+long EEPROMReadlong(long address) {
+      //Read the 4 bytes from the eeprom memory.
+      long four = EEPROM.read(address);
+      long three = EEPROM.read(address + 1);
+      long two = EEPROM.read(address + 2);
+      long one = EEPROM.read(address + 3);
+
+      //Return the recomposed long by using bitshift.
+      return ((four << 0) & 0xFF) + ((three << 8) & 0xFFFF) + ((two << 16) & 0xFFFFFF) + ((one << 24) & 0xFFFFFFFF);
 }
