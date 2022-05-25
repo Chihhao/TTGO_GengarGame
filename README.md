@@ -5,7 +5,8 @@ Gengar Image Ref: https://www.deviantart.com/xxlpanda/art/Gengar-Sprite-79533964
 ## Features  
 * Enter sleep mode if no button pressed in 10 seconds  
 * Press button to adjust screen brightness(PWM)  
-* two heroes with different difficulty
+* 3 heroes with different difficulty
+* Keep the maximum score in eeprom
 
 ## Board  
 TTGO T-Display V1.1  
