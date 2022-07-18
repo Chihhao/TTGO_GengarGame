@@ -27,8 +27,11 @@ TFT_eSprite spriteEnemy0 = TFT_eSprite(&tft);
 TFT_eSprite spriteEnemy1 = TFT_eSprite(&tft);
 TFT_eSprite spriteGameOver = TFT_eSprite(&tft);
   
-#define BUTTON_A_PIN  0    
-#define BUTTON_B_PIN  35  
+#define BUTTON_A_PIN  0
+#define BUTTON_B_PIN  35
+#define PIN_BAT_ADC   34
+#define PIN_POWER_EN  14
+
 #define TIME_TO_SLEEP 10000  //10S
 Button2 buttonA = Button2(BUTTON_A_PIN);
 Button2 buttonB = Button2(BUTTON_B_PIN);
@@ -80,7 +83,6 @@ int hero_jump_W, hero_jump_H;
 int hero_colision_diff;
 int heroSelectedIdx = 0;
 const int NO_HEROS = 3;
-
 
 int hero_front_Type=1;
 
@@ -205,6 +207,9 @@ void pressB(Button2& btn) {
 }
 
 void setup() {
+  Serial.begin(112500);
+  delay(10);
+  
   EEPROM.begin(EEPROM_SIZE);
   historyHighScore = EEPROMReadlong(0);
   
@@ -213,6 +218,9 @@ void setup() {
   
   pinMode(BUTTON_A_PIN, INPUT_PULLUP);
   pinMode(BUTTON_B_PIN, INPUT_PULLUP);
+  pinMode(PIN_BAT_ADC, INPUT);
+  pinMode(PIN_POWER_EN, OUTPUT);
+  digitalWrite(PIN_POWER_EN, HIGH);
 
   buttonA.setPressedHandler(pressA);
   buttonB.setPressedHandler(pressB);
@@ -234,7 +242,7 @@ void setup() {
   gameStatus = STATUS_INIT;
 }
 
-void loop() {
+void loop() {  
   buttonA.loop();  
   buttonB.loop(); 
   
@@ -356,7 +364,6 @@ void drawSprite(){
   spriteEnemy1.drawXBitmap(0, 0, enemy[1], ENEMY_W, ENEMY_H, enemyColor[1], TFT_BLACK);  
   spriteEnemy0.pushToSprite(&spriteScreen, enemyX[0], ENEMY_Y, TFT_BLACK);
   spriteEnemy1.pushToSprite(&spriteScreen, enemyX[1], ENEMY_Y, TFT_BLACK);
-    
   
   // Draw Hero
   if(heroStatus == Jumping ||  heroStatus == Falling){
@@ -432,12 +439,43 @@ void doSleep(){
     esp_deep_sleep_start();
 }
 
+double mapf(double x, double in_min, double in_max, double out_min, double out_max){
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+double getBatteryVolts(){
+  int bat = analogRead(PIN_BAT_ADC); 
+  double adc_ratio = ((double)bat/4096.0) * 2;  
+  double volts = adc_ratio * 3.3;
+  return volts;
+}
+
+int getBatteryPersentage(double volts){
+  double persentage = mapf(volts, 3.2, 3.7, 0, 100);
+  if(persentage >= 100){ persentage = 100; }
+  if(persentage <= 0){ persentage = 0; }
+  return  (int)persentage;
+}
+
 void showHeroSelection(){
   spriteScreen.fillSprite(TFT_BLACK);   
   
   if(frames < 8) hero_front_Type = 1;
   if(frames > 8) hero_front_Type = 2;
   if(++frames==16) frames=0;
+
+  // Draw Battery Icon
+  double dBatVolts = getBatteryVolts(); 
+  int dBatPeresntage = getBatteryPersentage(dBatVolts); 
+  
+  spriteScreen.setTextSize(1); 
+  if(dBatVolts>4.0){
+    spriteScreen.drawString("Battery : 100% (Charging)", 2, 1, 2);                            
+  }
+  else{
+    spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts) + "V)" , 
+                            2, 1, 2);  
+  }
   
   // Draw Rect
   if(heroSelectedIdx==0){
@@ -464,7 +502,7 @@ void showHeroSelection(){
 
   int X2 = 199 - GOKU_FRONT_W/2 - 1;
   int Y2 = 95 - GOKU_FRONT_H + 2; 
-	
+  
   // Draw Heros
   spriteHero0.createSprite(KOOPA_FRONT_W, KOOPA_FRONT_H);
   spriteHero1.createSprite(GENGAR_FRONT_W, GENGAR_FRONT_H);
