@@ -5,6 +5,8 @@
 // TFT_eSPI Library Version: 2.4.32
 // Button2 Library Version: 1.4.0
 
+// Screen Size: 240*135
+
 #include <TFT_eSPI.h>
 #include "Button2.h"
 #include "item.h"
@@ -89,6 +91,9 @@ int hero_front_Type=1;
 #include "EEPROM.h"
 #define EEPROM_SIZE 4
 long historyHighScore;
+
+int batChargeAnimation = 4;
+unsigned long timestamp_charging_animation = 0;
 
 void initGame(){  
   
@@ -458,24 +463,76 @@ int getBatteryPersentage(double volts){
 }
 
 void showHeroSelection(){
-  spriteScreen.fillSprite(TFT_BLACK);   
+  // spriteScreen.fillSprite(TFT_BLACK);     
+  spriteScreen.fillRect(0 ,27, 240,135-27, TFT_BLACK);  // clear
+
   
   if(frames < 8) hero_front_Type = 1;
   if(frames > 8) hero_front_Type = 2;
   if(++frames==16) frames=0;
 
-  // Draw Battery Icon
-  double dBatVolts = getBatteryVolts(); 
-  int dBatPeresntage = getBatteryPersentage(dBatVolts); 
   
-  spriteScreen.setTextSize(1); 
-  if(dBatVolts>4.0){
-    spriteScreen.drawString("Battery : 100% (Charging)", 2, 1, 2);                            
+  { // Draw Battery Icon
+    double dBatVolts = getBatteryVolts(); 
+    int dBatPeresntage = getBatteryPersentage(dBatVolts);  
+    
+    // Battery Shell 
+    const int _RIGHT = 1;
+    const int _TOP = 6;
+    const int _WIDTH = 43;
+    const int _HEIGHT = 15;
+    const int _HEAD = 5;
+    int _LEFT = 240 - _RIGHT - _WIDTH;
+    int _BOTTOM = _TOP + _HEIGHT;  
+    spriteScreen.drawRect(_LEFT, _TOP, _WIDTH, _HEIGHT, TFT_DARKGREY);   
+    spriteScreen.drawRect(_LEFT-_HEAD+1, _TOP+_HEAD, _HEAD, _HEAD, TFT_DARKGREY);
+    spriteScreen.drawLine(_LEFT, _TOP+_HEAD ,_LEFT, _TOP+_HEAD+_HEAD-1, TFT_BLACK);   
+  
+    // Battery Content
+    const int _C_LEFT = _LEFT + 2;
+    const int _C_TOP = _TOP + 2;
+    const int _C_WITDH = _WIDTH / 5 - 1;
+    const int _C_HEIGHT = _HEIGHT - 4;
+
+    if(dBatVolts>4.0){  // Charging
+      if(millis() - timestamp_charging_animation > 500){  
+        timestamp_charging_animation = millis();
+        if(batChargeAnimation==4) {
+          spriteScreen.fillRect(_LEFT+1, _TOP+1, _WIDTH-2, _HEIGHT-2, TFT_BLACK);  //clear
+        }
+        for(int i=4; i>=batChargeAnimation; i--){
+          spriteScreen.fillRect(_C_LEFT + (_C_WITDH+1)*i, _C_TOP, _C_WITDH, _C_HEIGHT, TFT_GREEN);
+        }        
+        if(--batChargeAnimation<0) {
+          batChargeAnimation=4;          
+        }        
+      } 
+    }
+    else{
+      spriteScreen.fillRect(_LEFT+1, _TOP+1, _WIDTH-2, _HEIGHT-2, TFT_BLACK);  //clear      
+      // level:  100%:0, 80%:1, 60%:2, 40%:3, 20%:4
+      int level = 5 - dBatPeresntage / 20; 
+      if(level < 5){
+        for(int i=4; i>=level; i--){
+          spriteScreen.fillRect(_C_LEFT + (_C_WITDH+1)*i, _C_TOP, _C_WITDH, _C_HEIGHT, TFT_GREEN);
+        }   
+      }      
+    }
+
+    // Words
+    spriteScreen.fillRect(0 ,0, 180, 27, TFT_BLACK);  // clear
+    spriteScreen.setTextSize(1); 
+    if(dBatVolts>4.0){
+      spriteScreen.drawString("Battery : (Charging)", 3, 5, 2);                            
+    }
+    else{
+      spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts) + "V)" , 
+                              3, 5, 2);  
+    }
   }
-  else{
-    spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts) + "V)" , 
-                            2, 1, 2);  
-  }
+  
+  // Draw Bottom Words
+  spriteScreen.drawString("github.com/Chihhao/TTGO_GengarGame", 0, 114, 2);  
   
   // Draw Rect
   if(heroSelectedIdx==0){
