@@ -465,15 +465,13 @@ int getBatteryPersentage(double volts){
 void showHeroSelection(){
   // spriteScreen.fillSprite(TFT_BLACK);     
   spriteScreen.fillRect(0 ,27, 240,135-27, TFT_BLACK);  // clear
-
   
   if(frames < 8) hero_front_Type = 1;
   if(frames > 8) hero_front_Type = 2;
   if(++frames==16) frames=0;
-
   
   { // Draw Battery Icon
-    double dBatVolts = getBatteryVolts(); 
+    double dBatVolts = getBatteryVolts();
     int dBatPeresntage = getBatteryPersentage(dBatVolts);  
     
     // Battery Shell 
@@ -510,8 +508,15 @@ void showHeroSelection(){
     }
     else{
       spriteScreen.fillRect(_LEFT+1, _TOP+1, _WIDTH-2, _HEIGHT-2, TFT_BLACK);  //clear      
-      // level:  100%:0, 80%:1, 60%:2, 40%:3, 20%:4
-      int level = 5 - dBatPeresntage / 20; 
+      
+      int level;
+      if(dBatPeresntage<=0)       { level = 5; }
+      else if(dBatPeresntage<=20) { level = 4; }
+      else if(dBatPeresntage<=40) { level = 3; }
+      else if(dBatPeresntage<=60) { level = 2; }
+      else if(dBatPeresntage<=80) { level = 1; }
+      else                        { level = 0; }
+    
       if(level < 5){
         for(int i=4; i>=level; i--){
           spriteScreen.fillRect(_C_LEFT + (_C_WITDH+1)*i, _C_TOP, _C_WITDH, _C_HEIGHT, TFT_GREEN);
@@ -526,7 +531,7 @@ void showHeroSelection(){
       spriteScreen.drawString("Battery : (Charging)", 3, 5, 2);                            
     }
     else{
-      spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts) + "V)" , 
+      spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts, 1) + "V)" , 
                               3, 5, 2);  
     }
   }
