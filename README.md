@@ -23,7 +23,7 @@ TFT_eSPI Library Version: 2.4.32
 Ref: https://www.thingiverse.com/thing:4501444  
 I reviced it to fit 803040 1000mAh battery. 
 
-## Pictrue  
+## Pictrues 
 ![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/Demo_New.gif)  
 ![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image01.jpg)  
 ![image](https://github.com/Chihhao/TTGO_GengarGame/blob/main/image/image02.jpg)  
@@ -33,7 +33,7 @@ I reviced it to fit 803040 1000mAh battery.
 ## Image to C Code  
 * use lcd-image-converter  
 * https://thesolaruniverse.wordpress.com/2021/11/05/displaying-color-pictures-on-a-240x240-tft-screen-with-st7789-controller-with-an-esp32-wroom-32/   
-Type: Color 
-Color R5G6B5 
-Block Size: 16bit 
-Byte Order: Big-Endian 
+Type: Color  
+Color R5G6B5  
+Block Size: 16bit  
+Byte Order: Big-Endian  
