@@ -27,12 +27,13 @@
 #define PIN_BAT_ADC   34
 #define PIN_POWER_EN  14
 
-#define VERSION "V2"
+#define VERSION "V2.2"
 #define MY_WIDTH  TFT_HEIGHT  // 240
 #define MY_HEIGHT TFT_WIDTH   // 135  
 #define TIME_TO_SLEEP          12000  // 12s
 #define TIME_TO_ADD_SKILL_NO   10000  // 10s
 #define TIME_TO_RESUME_GIANT   2000   // 2s
+#define TIME_TO_GET_BATTERY    1000   // 1s
 #define PWM_FRQ 5000
 #define PWM_RES 8
 #define PWM_CHN 0
@@ -75,6 +76,8 @@ float cloudSpeed=0.4;
 float fireBallSpeed=1.0;
 int score=0;
 
+double dBatVolts=0;
+
 typedef enum { GAMEOVER, RUN, INIT } GameState;
 GameState gameState = INIT;
 
@@ -90,6 +93,7 @@ long last_available_time = 0;
 long game_start_time = 0;
 long last_skill_add_time=0;
 long last_giant_time=0;
+long last_battery_time=0;
 
 int JUMP_TOP, JUMP_BOTTOM;
 
@@ -581,6 +585,7 @@ void checkColision(){
 }
 
 void doSleep(){
+    digitalWrite(PIN_POWER_EN, LOW);
     pinMode(TFT_BL, OUTPUT);     
     digitalWrite(TFT_BL, !TFT_BACKLIGHT_ON);  
     tft.writecommand(ST7789_DISPOFF);// Switch off the display    
@@ -594,19 +599,20 @@ double mapf(double x, double in_min, double in_max, double out_min, double out_m
 
 double getBatteryVolts(){
   int bat = analogRead(PIN_BAT_ADC); 
-  double adc_ratio = ((double)bat/4096.0) * 2;  
-  double volts = adc_ratio * 3.3;
+  double volts = ((double)bat / 4095.0) * 2.0 * 3.3 * 1.1;
+  // Serial.println(volts);
   return volts;
 }
 
 int getBatteryPersentage(double volts){
-  double persentage = mapf(volts, 3.2, 3.7, 0, 100);
+  double persentage = mapf(volts, 3.2, 3.8, 0, 100);
   if(persentage >= 100){ persentage = 100; }
   if(persentage <= 0){ persentage = 0; }
   return  (int)persentage;
 }
 
 void showHeroSelection(){
+
   // spriteScreen.fillSprite(TFT_BLACK);     
   spriteScreen.fillRect(0 ,27, MY_WIDTH, MY_HEIGHT-27, TFT_BLACK);  // clear
   
@@ -614,8 +620,11 @@ void showHeroSelection(){
   if(frames > 8) hero_front_Type = 2;
   if(++frames==16) frames=0;
   
-  { // 畫電池
-    double dBatVolts = getBatteryVolts();
+  { // 畫電池    
+    if( millis() - last_battery_time > TIME_TO_GET_BATTERY) {
+      last_battery_time = millis();
+      dBatVolts = getBatteryVolts();  // 取得電量
+    }    
     int dBatPeresntage = getBatteryPersentage(dBatVolts);  
     
     // 畫電池外框 
@@ -636,7 +645,7 @@ void showHeroSelection(){
     const int _C_WITDH = _WIDTH / 5 - 1;
     const int _C_HEIGHT = _HEIGHT - 4;
 
-    if(dBatVolts>4.0){  // 充電中
+    if(dBatVolts>4.2){  // 充電中
       if(millis() - timestamp_charging_animation > 500){  
         timestamp_charging_animation = millis();
         if(batChargeAnimation==4) {
@@ -668,15 +677,14 @@ void showHeroSelection(){
       }      
     }
 
-    // Words
-//    spriteScreen.fillRect(0 ,0, 180, 27, TFT_BLACK);  // clear
+    // 畫頂部文字
+//    spriteScreen.fillRect(0 ,0, 190, 27, TFT_BLACK);  // clear
 //    spriteScreen.setTextSize(1); 
-//    if(dBatVolts>4.0){
+//    if(dBatVolts>4.2){
 //      spriteScreen.drawString("Battery : (Charging)", 3, 5, 2);                            
 //    }
 //    else{
-//      spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts, 1) + "V)" , 
-//                              3, 5, 2);  
+//      spriteScreen.drawString("Battery : " + String(dBatPeresntage) +"% (" + String(dBatVolts, 1) + "V)", 3, 5, 2);  
 //    }
   }
 
@@ -686,7 +694,9 @@ void showHeroSelection(){
   if(hero == HERO_KOOPA){ spriteScreen.drawString("Select : Koopa", 3, 5, 2); }
   if(hero == HERO_GENGAR){ spriteScreen.drawString("Select : Gengar", 3, 5, 2); }
   if(hero == HERO_GOKU){ spriteScreen.drawString("Select : Goku", 3, 5, 2); }
-  spriteScreen.drawString(VERSION, 170, 5, 2);
+  
+  // 畫版本文字
+  spriteScreen.drawString(VERSION, 160, 5, 2);
   
   // 畫底部文字
   spriteScreen.drawString("github.com/Chihhao/TTGO_GengarGame", 0, 114, 2);  
@@ -695,8 +705,6 @@ void showHeroSelection(){
   spriteScreen.drawRect(1, 27, 80, 80, hero==HERO_KOOPA?TFT_YELLOW:TFT_DARKGREY);  
   spriteScreen.drawRect(81, 27, 79, 80, hero==HERO_GENGAR?TFT_YELLOW:TFT_DARKGREY);
   spriteScreen.drawRect(160, 27, 80, 80, hero==HERO_GOKU?TFT_YELLOW:TFT_DARKGREY);
-
-
   
   // 畫角色
   int X0 = 40 - KOOPA_FRONT_W/2;
