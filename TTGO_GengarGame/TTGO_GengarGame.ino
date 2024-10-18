@@ -7,9 +7,10 @@
 // PSRAM: Disabled
 
 // Library:
-// ESP32 Library Version: 2.0.2
-// TFT_eSPI Library Version: 2.4.32
-// Button2 Library Version: 1.4.0
+// Arduino IDE 2.3.3
+// ESP32 Library Version: 2.0.14
+// TFT_eSPI Library Version: 2.5.43
+// Button2 Library Version: 2.3.3
 
 // Screen Size: 240*135
 
@@ -27,7 +28,7 @@
 #define PIN_BAT_ADC   34
 #define PIN_POWER_EN  14
 
-#define VERSION "V2.2"
+#define VERSION "V2.4"
 #define MY_WIDTH  TFT_HEIGHT  // 240
 #define MY_HEIGHT TFT_WIDTH   // 135  
 #define TIME_TO_SLEEP          12000  // 12s
@@ -306,8 +307,8 @@ void pressB(Button2& btn) {
 }
 
 void setup() {
-  Serial.begin(112500);
-  delay(10);
+  // Serial.begin(112500);
+  // delay(10);
 
   //從EEPROM載入設定
   Serial.println("enable EEPROM");   
@@ -323,7 +324,7 @@ void setup() {
   pinMode(BUTTON_B_PIN, INPUT_PULLUP);
   pinMode(PIN_BAT_ADC, INPUT);
   pinMode(PIN_POWER_EN, OUTPUT);
-  digitalWrite(PIN_POWER_EN, HIGH);
+  //digitalWrite(PIN_POWER_EN, HIGH);
 
   buttonA.setPressedHandler(pressA);
   buttonB.setPressedHandler(pressB);
@@ -598,14 +599,18 @@ double mapf(double x, double in_min, double in_max, double out_min, double out_m
 }
 
 double getBatteryVolts(){
-  int bat = analogRead(PIN_BAT_ADC); 
+  digitalWrite(PIN_POWER_EN, HIGH);
+  delay(20);
+  int bat = analogRead(PIN_BAT_ADC);   
+  delay(20);
+  digitalWrite(PIN_POWER_EN, LOW);
   double volts = ((double)bat / 4095.0) * 2.0 * 3.3 * 1.1;
   // Serial.println(volts);
   return volts;
 }
 
 int getBatteryPersentage(double volts){
-  double persentage = mapf(volts, 3.2, 3.8, 0, 100);
+  double persentage = mapf(volts, 3.3, 4.0, 0, 100);
   if(persentage >= 100){ persentage = 100; }
   if(persentage <= 0){ persentage = 0; }
   return  (int)persentage;
@@ -645,7 +650,7 @@ void showHeroSelection(){
     const int _C_WITDH = _WIDTH / 5 - 1;
     const int _C_HEIGHT = _HEIGHT - 4;
 
-    if(dBatVolts>4.2){  // 充電中
+    if(dBatVolts>4.3){  // 充電中
       if(millis() - timestamp_charging_animation > 500){  
         timestamp_charging_animation = millis();
         if(batChargeAnimation==4) {
