@@ -28,7 +28,7 @@
 #define PIN_BAT_ADC   34
 #define PIN_POWER_EN  14
 
-#define VERSION "V2.4"
+#define VERSION "V2.2"
 #define MY_WIDTH  TFT_HEIGHT  // 240
 #define MY_HEIGHT TFT_WIDTH   // 135  
 #define TIME_TO_SLEEP          12000  // 12s
@@ -307,8 +307,8 @@ void pressB(Button2& btn) {
 }
 
 void setup() {
-  // Serial.begin(112500);
-  // delay(10);
+  Serial.begin(112500);
+  delay(10);
 
   //從EEPROM載入設定
   Serial.println("enable EEPROM");   
@@ -341,6 +341,10 @@ void setup() {
   
   spriteScreen.createSprite(MY_WIDTH, MY_HEIGHT);
   spriteScreen.setTextColor(TFT_YELLOW); 
+
+  // 取得電量
+  last_battery_time = millis();
+  dBatVolts = getBatteryVolts();  
 
   gameState = INIT;  
 }
@@ -605,7 +609,7 @@ double getBatteryVolts(){
   delay(20);
   digitalWrite(PIN_POWER_EN, LOW);
   double volts = ((double)bat / 4095.0) * 2.0 * 3.3 * 1.1;
-  // Serial.println(volts);
+  Serial.println(volts);
   return volts;
 }
 
@@ -650,7 +654,7 @@ void showHeroSelection(){
     const int _C_WITDH = _WIDTH / 5 - 1;
     const int _C_HEIGHT = _HEIGHT - 4;
 
-    if(dBatVolts>4.3){  // 充電中
+    if(dBatVolts>4.5){  // 充電中
       if(millis() - timestamp_charging_animation > 500){  
         timestamp_charging_animation = millis();
         if(batChargeAnimation==4) {
